@@ -1,0 +1,69 @@
+       DCL-F SHIFTWEEK USAGE(*INPUT) KEYED RENAME(SHIFTWEEK:SHIFTWEEKR);
+       DCL-F CONFIRMPY2 WORKSTN;
+       DCL-F SHIFTRATES DISK USAGE(*INPUT);
+       DCL-F PAYRPT2 PRINTER OFLIND(*IN01);
+       DCL-PI MAIN EXTPGM('PAYROLLPG3');
+         SHIFTTYPE CHAR(30);
+       END-PI;
+
+       READ SHIFTRATES;
+       WRITE TITLE;
+       WRITE COLHDG;
+       READ SHIFTWEEK;
+       TOTREGPAY = 0;
+       TOTOVTPAY = 0;
+       TOTWKPAY = 0;
+
+       DOW NOT %EOF;
+         EXSR PAYSR;
+         IF *IN01;
+           WRITE TITLE;
+           WRITE COLHDG;
+         ENDIF;
+         WRITE EMPDETAIL;
+         READ SHIFTWEEK;
+       ENDDO;
+
+       TOTREGULAR = TOTREGPAY;
+       TOTOVER = TOTOVTPAY;
+       TOTWEEK = TOTWKPAY;
+
+       WRITE TOTALS;
+       EXFMT RECORD1;
+       *INLR = *ON;
+       RETURN;
+
+       BEGSR PAYSR;
+         SELECT;
+           WHEN WORKSHIFT = '1';
+             HOURLYRATE = DAYRATE;
+           WHEN WORKSHIFT = '2';
+             HOURLYRATE = AFTNRATE;
+           WHEN WORKSHIFT = '3';
+             HOURLYRATE = NIGHTRATE;
+         ENDSL;
+
+          SELECT;
+           WHEN PAYGRADE = 'A';
+             eval(h) HOURLYRATE = HOURLYRATE * 1.096;
+           WHEN PAYGRADE = 'B';
+             eval(h) HOURLYRATE = HOURLYRATE * 1.072;
+           WHEN PAYGRADE = 'C';
+             eval(h) HOURLYRATE = HOURLYRATE * 0.956;
+         ENDSL;
+
+         IF HRSWORKED > 40;
+           REGULARPAY = HOURLYRATE * 40;
+           OVERPAY = HOURLYRATE * 1.5 * (HRSWORKED - 40);
+           WEEKPAY = REGULARPAY + OVERPAY;
+         ELSE;
+           REGULARPAY = HOURLYRATE * HRSWORKED;
+           OVERPAY = 0;
+           WEEKPAY = REGULARPAY;
+         ENDIF;
+
+         TOTREGPAY += REGULARPAY;
+         TOTOVTPAY += OVERPAY;
+         TOTWKPAY += WEEKPAY;
+       ENDSR;
+
